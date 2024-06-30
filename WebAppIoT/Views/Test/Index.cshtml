@@ -1,0 +1,152 @@
+﻿@model WebAppIoT.Controllers.IndexViewModel
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width" />
+    <title>Index</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        .filter {
+            margin-bottom: 20px;
+        }
+
+        .sensor-status {
+            margin-top: 20px; /* Add margin between filter and sensors */
+        }
+
+        .gateway-section {
+            margin-bottom: 20px; /* Add margin between gateway sections */
+        }
+
+        .gateway-title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .sensor-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .sensor {
+            width: 100px; /* Adjust width as needed */
+            height: 100px; /* Adjust height as needed */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .green {
+            background-color: #7CFC00; /* Green */
+        }
+
+        .red {
+            background-color: #FF0000; /* Red */
+        }
+
+        .gray {
+            background-color: #808080; /* Gray */
+        }
+    </style>
+    <script>
+        // Function to set the selected gateway ID in the dropdown
+        function setSelectedGateway(gatewayId) {
+            var dropdown = document.getElementById("gatewayFilter");
+            for (var i = 0; i < dropdown.options.length; i++) {
+                if (dropdown.options[i].value === gatewayId.toString()) {
+                    dropdown.selectedIndex = i;
+                    break;
+                }
+            }
+        }
+
+        // Function to handle filtering sensors
+        function filterSensors() {
+            var dropdown = document.getElementById("gatewayFilter");
+            var selectedGatewayId = dropdown.value;
+            window.location.href = '?gatewayId=' + selectedGatewayId;
+        }
+
+        // Call setSelectedGateway function on page load to set initial selection
+        document.addEventListener("DOMContentLoaded", function () {
+            var selectedGatewayId = '@(Context.Request.Query["gatewayId"].ToString())';
+            setSelectedGateway(selectedGatewayId);
+        });
+    </script>
+</head>
+<body>
+    <h1>Your Sensors</h1>
+    <div class="filter">
+        <label for="gatewayFilter">Filter by Gateway ID:</label>
+        <select id="gatewayFilter" onchange="filterSensors()">
+            <option value="">All</option>
+            <script>
+                // Populate options using JavaScript
+                var gatewayIds = @Html.Raw(Json.Serialize(Model.GatewayIds));
+                var selectedGatewayId = '@(Context.Request.Query["gatewayId"].ToString())';
+
+                gatewayIds.forEach(function (gatewayId) {
+                    var option = document.createElement("option");
+                    option.value = gatewayId.toString(); // Convert gatewayId to string explicitly
+                    option.text = gatewayId.toString(); // Convert gatewayId to string explicitly
+                    if (gatewayId.toString() === selectedGatewayId) {
+                        option.selected = true;
+                    }
+                    document.getElementById("gatewayFilter").appendChild(option);
+                });
+            </script>
+        </select>
+    </div>
+    <div class="sensor-status">
+        @if (string.IsNullOrEmpty(Context.Request.Query["gatewayId"]))
+        {
+            // Display all sensors grouped by gateway
+            var groupedSensors = Model.DataList.GroupBy(s => s.GatewayId);
+            foreach (var group in groupedSensors)
+            {
+                <div class="gateway-section">
+                    <div class="gateway-title">Gateway @group.Key</div>
+                    <div class="sensor-list">
+                        @foreach (var sensor in group)
+                        {
+                            var sensorClass = sensor == null ? "gray" : sensor.Value ? "green" : "red";
+                            var sensorId = sensor != null ? sensor.SensorId.ToString() : "No Data"; // Ensure sensorId is always string
+
+                            <div class="sensor @sensorClass">@sensorId</div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            // Display sensors filtered by selected gateway
+            var filteredSensors = Model.DataList.Where(s => s.GatewayId.ToString() == Context.Request.Query["gatewayId"].ToString());
+            <div class="gateway-section">
+                <div class="sensor-list">
+                    @foreach (var sensor in filteredSensors)
+                    {
+                        var sensorClass = sensor == null ? "gray" : sensor.Value ? "green" : "red";
+                        var sensorId = sensor != null ? sensor.SensorId.ToString() : "No Data"; // Ensure sensorId is always string
+
+                        <div class="sensor @sensorClass">@sensorId</div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</body>
+</html>
