@@ -61,6 +61,7 @@
             background-color: #808080; /* Gray */
         }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/5.0.11/signalr.min.js"></script>
     <script>
         // Function to set the selected gateway ID in the dropdown
         function setSelectedGateway(gatewayId) {
@@ -85,6 +86,23 @@
             var selectedGatewayId = '@(Context.Request.Query["gatewayId"].ToString())';
             setSelectedGateway(selectedGatewayId);
         });
+
+        // SignalR setup for real-time updates
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/dataHub")
+            .build();
+
+        connection.on("ReceiveDataUpdate", function () {
+            console.log("ReceiveDataUpdate event received");
+            location.reload(); // Refresh page or update UI as needed
+        });
+
+        connection.start().then(function () {
+            console.log("SignalR connected");
+        }).catch(function (err) {
+            console.error("SignalR connection error: ", err.toString());
+        });
+
     </script>
 </head>
 <body>
