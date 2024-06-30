@@ -1,16 +1,18 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using WebAppIoT;
+using Microsoft.AspNetCore.SignalR;
+using WebAppIoT.Hubs;
 
 namespace WebAppIoT.Controllers
 {
-
     public class TestController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly IHubContext<DataHub> _hubContext;
 
-        public TestController(ApplicationDbContext context)
+        public TestController(ApplicationDbContext context, IHubContext<DataHub> hubContext)
         {
             _context = context;
+            _hubContext = hubContext;
         }
 
         public IActionResult Index(int? gatewayId)
@@ -34,7 +36,17 @@ namespace WebAppIoT.Controllers
 
             return View(model);
         }
+
+        [HttpPost]
+        public async Task<IActionResult> AddData(Data newData)
+        {
+            _context.Data.Add(newData);
+            await _context.SaveChangesAsync();
+            await _hubContext.Clients.All.SendAsync("ReceiveDataUpdate");
+            return RedirectToAction("Index");
+        }
     }
+
     public class IndexViewModel
     {
         public List<Data> DataList { get; set; }
