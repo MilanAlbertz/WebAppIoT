@@ -60,8 +60,22 @@
         .gray {
             background-color: #808080; /* Gray */
         }
+
+        #chartContainer {
+            width: 400px; /* Adjust width as needed */
+            height: 200px;
+            border: 1px solid black; /* Add black border */
+            margin-top: 20px; /* Add margin top for spacing */
+        }
+
+        .sensorChart {
+            width: 100%;
+            height: 100%;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/5.0.11/signalr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
     <script>
         // Function to set the selected gateway ID in the dropdown
         function setSelectedGateway(gatewayId) {
@@ -85,6 +99,9 @@
         document.addEventListener("DOMContentLoaded", function () {
             var selectedGatewayId = '@(Context.Request.Query["gatewayId"].ToString())';
             setSelectedGateway(selectedGatewayId);
+            if (selectedGatewayId) {
+                renderChart();
+            }
         });
 
         // SignalR setup for real-time updates
@@ -103,6 +120,83 @@
             console.error("SignalR connection error: ", err.toString());
         });
 
+        // Define an array of consistent colors
+        const consistentColors = ['#FF5733', '#33FF57', '#5733FF', '#FF5733', '#33FF57', '#5733FF'];
+
+        function getNextColor() {
+            // Initialize an index to cycle through the colors array
+            let colorIndex = 0;
+            return function () {
+                const color = consistentColors[colorIndex % consistentColors.length];
+                colorIndex++;
+                return color;
+            };
+        }
+
+        // Create a function to get the next consistent color
+        const getConsistentColor = getNextColor();
+
+        function renderChart() {
+            var chartData = @Html.Raw(Json.Serialize(Model.ChartData));
+            var ctx = document.getElementById('sensorChart').getContext('2d');
+            var datasets = [];
+
+            var minTimestamp = new Date('@Model.MinTimestamp').getTime();
+            var maxTimestamp = new Date('@Model.MaxTimestamp').getTime();
+
+            for (var sensorId in chartData) {
+                var sensorData = chartData[sensorId];
+                var data = sensorData.map(d => {
+                    var timestamp = new Date(d.timeStamp);
+                    return { x: timestamp, y: d.value ? 1 : 0 };
+                });
+
+                datasets.push({
+                    label: 'Sensor ' + sensorId,
+                    data: data,
+                    fill: false,
+                    borderColor: getConsistentColor(), // Use consistent colors
+                    tension: 0.1,
+                    stepped: true
+                });
+            }
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: datasets
+                },
+                options: {
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day',
+                                displayFormats: {
+                                    minute: 'HH:mm:ss'
+                                }
+                            },
+                            min: minTimestamp,
+                            max: maxTimestamp
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Status'
+                            },
+                            ticks: {
+                                callback: function (value) {
+                                    return value === 1 ? 'On' : 'Off';
+                                },
+                                stepSize: 1,
+                                min: 0,
+                                max: 1
+                            }
+                        }
+                    }
+                }
+            });
+        }
     </script>
 </head>
 <body>
@@ -132,7 +226,11 @@
         @if (string.IsNullOrEmpty(Context.Request.Query["gatewayId"]))
         {
             // Display all sensors grouped by gateway
-            var groupedSensors = Model.DataList.GroupBy(s => s.GatewayId);
+            var groupedSensors = Model.DataList
+            .GroupBy(s => new { s.GatewayId, s.SensorId })
+            .Select(g => g.OrderByDescending(d => d.TimeStamp).FirstOrDefault())
+            .GroupBy(s => s.GatewayId);
+
             foreach (var group in groupedSensors)
             {
                 <div class="gateway-section">
@@ -152,7 +250,11 @@
         else
         {
             // Display sensors filtered by selected gateway
-            var filteredSensors = Model.DataList.Where(s => s.GatewayId.ToString() == Context.Request.Query["gatewayId"].ToString());
+            var filteredSensors = Model.DataList
+            .Where(s => s.GatewayId.ToString() == Context.Request.Query["gatewayId"].ToString())
+            .GroupBy(s => s.SensorId)
+            .Select(g => g.OrderByDescending(d => d.TimeStamp).FirstOrDefault());
+
             <div class="gateway-section">
                 <div class="sensor-list">
                     @foreach (var sensor in filteredSensors)
@@ -163,6 +265,10 @@
                         <div class="sensor @sensorClass">@sensorId</div>
                     }
                 </div>
+            </div>
+
+            <div id="chartContainer">
+                <canvas id="sensorChart" class="chart"></canvas>
             </div>
         }
     </div>
